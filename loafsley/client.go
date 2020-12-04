@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2019-09-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2020-06-01/network"
 	"github.com/hashicorp/go-azure-helpers/authentication"
 	"github.com/hashicorp/go-azure-helpers/sender"
 )
@@ -12,8 +12,10 @@ import (
 type Client struct {
 	StopContext context.Context
 
-	RouteTablesClient    *network.RouteTablesClient
-	SecurityGroupsClient *network.SecurityGroupsClient
+	PrivateEndpointsClient *network.PrivateEndpointsClient
+	PrivateDNSZonesClient  *network.PrivateDNSZoneGroupsClient
+	RouteTablesClient      *network.RouteTablesClient
+	SecurityGroupsClient   *network.SecurityGroupsClient
 }
 
 func Build(config *authentication.Config) (*Client, error) {
@@ -40,14 +42,20 @@ func Build(config *authentication.Config) (*Client, error) {
 	}
 
 	subscriptionId := config.SubscriptionID
+	privateDNSZonesClient := network.NewPrivateDNSZoneGroupsClient(subscriptionId)
+	privateEndpointsClient := network.NewPrivateEndpointsClient(subscriptionId)
 	routeTablesClient := network.NewRouteTablesClient(subscriptionId)
 	securityGroupsClient := network.NewSecurityGroupsClient(subscriptionId)
 
+	privateDNSZonesClient.Authorizer = auth
+	privateEndpointsClient.Authorizer = auth
 	routeTablesClient.Authorizer = auth
 	securityGroupsClient.Authorizer = auth
 
 	return &Client{
-		RouteTablesClient:    &routeTablesClient,
-		SecurityGroupsClient: &securityGroupsClient,
+		PrivateDNSZonesClient:  &privateDNSZonesClient,
+		PrivateEndpointsClient: &privateEndpointsClient,
+		RouteTablesClient:      &routeTablesClient,
+		SecurityGroupsClient:   &securityGroupsClient,
 	}, nil
 }

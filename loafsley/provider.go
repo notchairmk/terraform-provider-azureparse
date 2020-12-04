@@ -2,8 +2,8 @@ package loafsley
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-azure-helpers/authentication"
 
+	"github.com/hashicorp/go-azure-helpers/authentication"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
@@ -52,13 +52,13 @@ func Provider() terraform.ResourceProvider {
 func initProvider(p *schema.Provider) schema.ConfigureFunc {
 	return func(d *schema.ResourceData) (interface{}, error) {
 		builder := &authentication.Builder{
-			SubscriptionID:     d.Get("subscription_id").(string),
-			ClientID:           d.Get("client_id").(string),
-			ClientSecret:       d.Get("client_secret").(string),
-			TenantID:           d.Get("tenant_id").(string),
+			SubscriptionID: d.Get("subscription_id").(string),
+			ClientID:       d.Get("client_id").(string),
+			ClientSecret:   d.Get("client_secret").(string),
+			TenantID:       d.Get("tenant_id").(string),
 
+			SupportsAzureCliToken:    true,
 			SupportsClientSecretAuth: true,
-			SupportsAzureCliToken: true,
 		}
 
 		config, err := builder.Build()

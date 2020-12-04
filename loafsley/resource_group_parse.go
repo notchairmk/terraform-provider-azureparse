@@ -3,7 +3,7 @@ package loafsley
 import (
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2019-09-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2020-06-01/network"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	uuid "github.com/satori/go.uuid"
 )
@@ -27,11 +27,45 @@ func resourceGroupParse() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
-							Type: schema.TypeString,
+							Type:     schema.TypeString,
 							Optional: true,
 						},
 						"id": {
-							Type: schema.TypeString,
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+					},
+				},
+			},
+
+			"private_dns_zones": &schema.Schema{
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"id": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+					},
+				},
+			},
+
+			"private_endpoints": &schema.Schema{
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"id": {
+							Type:     schema.TypeString,
 							Optional: true,
 						},
 					},
@@ -44,11 +78,11 @@ func resourceGroupParse() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
-							Type: schema.TypeString,
+							Type:     schema.TypeString,
 							Optional: true,
 						},
 						"id": {
-							Type: schema.TypeString,
+							Type:     schema.TypeString,
 							Optional: true,
 						},
 					},
@@ -66,6 +100,8 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
 
 func resourceServerRead(d *schema.ResourceData, m interface{}) error {
 	nsgClient := m.(*Client).SecurityGroupsClient
+	privateDNSZonesClient := m.(*Client).PrivateDNSZonesClient
+	privateEndpointsClient := m.(*Client).PrivateEndpointsClient
 	routeTableClient := m.(*Client).RouteTablesClient
 	ctx := m.(*Client).StopContext
 
@@ -77,6 +113,28 @@ func resourceServerRead(d *schema.ResourceData, m interface{}) error {
 	err = d.Set("network_security_groups", flattenNetworkSecurityGroups(nsgList))
 	if err != nil {
 		return fmt.Errorf("error setting state network security groups: %v", err)
+	}
+
+	privateEndpointList, err := privateEndpointsClient.List(ctx, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("error listing private endpoints: %v", err)
+	}
+	privateEndpoints := flattenPrivateEndpoints(privateEndpointList)
+	err = d.Set("private_endpoints", privateEndpoints)
+	if err != nil {
+		return fmt.Errorf("error setting private endpoint state: %v", err)
+	}
+
+	if len(privateEndpoints) > 0 {
+		privateEndpoint := privateEndpoints[0].(map[string]interface{})
+		dnsZones, err := privateDNSZonesClient.List(ctx, privateEndpoint["name"].(string), resourceGroupName)
+		if err != nil {
+			return fmt.Errorf("error listing dns zones: %v", err)
+		}
+		err = d.Set("private_dns_zones", flattenPrivateDNSZones(dnsZones))
+		if err != nil {
+			return fmt.Errorf("error setting private dns zone state: %v", err)
+		}
 	}
 
 	routeTablesList, err := routeTableClient.List(ctx, resourceGroupName)
@@ -109,20 +167,64 @@ func flattenNetworkSecurityGroups(groupList network.SecurityGroupListResultPage)
 	return nsgs
 }
 
+func flattenPrivateDNSZones(zoneList network.PrivateDNSZoneGroupListResultPage) []interface{} {
+	z := zoneList.Values()
+	zones := make([]interface{}, 0)
+	if z == nil {
+		return zones
+	}
+	for _, item := range z {
+		zone := make(map[string]string)
+		if item.ID != nil {
+			zone["id"] = *item.ID
+		}
+
+		if item.Name != nil {
+			zone["name"] = *item.Name
+		}
+		zones = append(zones, zone)
+	}
+
+	return zones
+}
+
+func flattenPrivateEndpoints(endpointList network.PrivateEndpointListResultPage) []interface{} {
+	e := endpointList.Values()
+	endpoints := make([]interface{}, 0)
+	if e == nil {
+		return endpoints
+	}
+	for _, item := range e {
+		newEndpoint := make(map[string]string)
+		if item.ID != nil {
+			newEndpoint["id"] = *item.ID
+		}
+
+		if item.Name != nil {
+			newEndpoint["name"] = *item.Name
+		}
+		endpoints = append(endpoints, newEndpoint)
+	}
+	return endpoints
+}
+
 func flattenRouteTables(tableList network.RouteTableListResultPage) []interface{} {
 	tables := tableList.Values()
-	nsgs := make([]interface{}, 0)
+	routeTables := make([]interface{}, 0)
+	if tables == nil {
+		return routeTables
+	}
 	for _, n := range tables {
-		nsg := make(map[string]string)
+		routeTable := make(map[string]string)
 		if n.ID != nil {
-			nsg["id"] = *n.ID
+			routeTable["id"] = *n.ID
 		}
 
 		if n.Name != nil {
-			nsg["name"] = *n.Name
+			routeTable["name"] = *n.Name
 		}
-		nsgs = append(nsgs, nsg)
+		routeTables = append(routeTables, routeTable)
 	}
 
-	return nsgs
+	return routeTables
 }
