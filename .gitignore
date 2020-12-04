@@ -1,3 +1,4 @@
 .idea
 .env.sh
 terraform-provider-loafsley
+terraform-provider-loafsley.exe

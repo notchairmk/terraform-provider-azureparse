@@ -1,4 +1,4 @@
-module github.com/notchairmk/terraform-plugin-loafsley
+module github.com/notchairmk/terraform-provider-loafsley
 
 go 1.13
 
