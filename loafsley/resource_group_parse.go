@@ -2,6 +2,7 @@ package loafsley
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2020-06-01/network"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -16,14 +17,15 @@ func resourceGroupParse() *schema.Resource {
 		Delete: resourceServerRead,
 
 		Schema: map[string]*schema.Schema{
-			"resource_group_name": &schema.Schema{
+			"resource_group_name": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
 
-			"network_security_groups": &schema.Schema{
+			"network_security_groups": {
 				Type:     schema.TypeList,
 				Computed: true,
+				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -38,43 +40,10 @@ func resourceGroupParse() *schema.Resource {
 				},
 			},
 
-			"private_dns_zones": &schema.Schema{
+			"route_tables": {
 				Type:     schema.TypeList,
 				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"id": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					},
-				},
-			},
-
-			"private_endpoints": &schema.Schema{
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"id": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					},
-				},
-			},
-
-			"route_tables": &schema.Schema{
-				Type:     schema.TypeList,
-				Computed: true,
+				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -100,131 +69,78 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
 
 func resourceServerRead(d *schema.ResourceData, m interface{}) error {
 	nsgClient := m.(*Client).SecurityGroupsClient
-	privateDNSZonesClient := m.(*Client).PrivateDNSZonesClient
-	privateEndpointsClient := m.(*Client).PrivateEndpointsClient
+	resourceGroupsClient := m.(*Client).ResourceGroupsClient
 	routeTableClient := m.(*Client).RouteTablesClient
 	ctx := m.(*Client).StopContext
 
 	resourceGroupName := d.Get("resource_group_name").(string)
-	nsgList, err := nsgClient.List(ctx, resourceGroupName)
+	// test resource group
+	res, err := resourceGroupsClient.CheckExistence(ctx, resourceGroupName)
 	if err != nil {
-		return fmt.Errorf("error listing security groups: %v", err)
+		return fmt.Errorf("error checking resource group: %v", err)
 	}
-	err = d.Set("network_security_groups", flattenNetworkSecurityGroups(nsgList))
+	if res.Response != nil && res.Response.StatusCode != 200 {
+		log.Printf("[INFO] unable to read resource group: %s\n%v\n", resourceGroupName, *res.Response)
+		return nil
+	}
+
+	nsgRes, err := nsgClient.List(ctx, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("error listing network security groups: %v", err)
+	}
+
+	nsgList, _ := flattenNetworkSecurityGroups(nsgRes)
+	err = d.Set("network_security_groups", nsgList)
 	if err != nil {
 		return fmt.Errorf("error setting state network security groups: %v", err)
 	}
 
-	privateEndpointList, err := privateEndpointsClient.List(ctx, resourceGroupName)
-	if err != nil {
-		return fmt.Errorf("error listing private endpoints: %v", err)
-	}
-	privateEndpoints := flattenPrivateEndpoints(privateEndpointList)
-	err = d.Set("private_endpoints", privateEndpoints)
-	if err != nil {
-		return fmt.Errorf("error setting private endpoint state: %v", err)
-	}
-
-	if len(privateEndpoints) > 0 {
-		privateEndpoint := privateEndpoints[0].(map[string]interface{})
-		dnsZones, err := privateDNSZonesClient.List(ctx, privateEndpoint["name"].(string), resourceGroupName)
-		if err != nil {
-			return fmt.Errorf("error listing dns zones: %v", err)
-		}
-		err = d.Set("private_dns_zones", flattenPrivateDNSZones(dnsZones))
-		if err != nil {
-			return fmt.Errorf("error setting private dns zone state: %v", err)
-		}
-	}
-
-	routeTablesList, err := routeTableClient.List(ctx, resourceGroupName)
+	routeTableRes, err := routeTableClient.List(ctx, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("error listing route tables: %v", err)
 	}
-	err = d.Set("route_tables", flattenRouteTables(routeTablesList))
+
+	routeTableList, _ := flattenRouteTables(routeTableRes)
+	err = d.Set("route_tables", routeTableList)
 	if err != nil {
-		return fmt.Errorf("error setting state route tables: %v", err)
+		return fmt.Errorf("error setting route table list: %v", err)
 	}
 
 	return nil
 }
 
-func flattenNetworkSecurityGroups(groupList network.SecurityGroupListResultPage) []interface{} {
+func flattenNetworkSecurityGroups(groupList network.SecurityGroupListResultPage) ([]interface{}, map[string]interface{}) {
 	groups := groupList.Values()
-	nsgs := make([]interface{}, 0)
+	nsgList := make([]interface{}, 0)
+	nsgMap := make(map[string]interface{})
 	for _, n := range groups {
-		nsg := make(map[string]string)
-		if n.ID != nil {
-			nsg["id"] = *n.ID
-		}
-
-		if n.Name != nil {
-			nsg["name"] = *n.Name
-		}
-		nsgs = append(nsgs, nsg)
+		nsgName := ""
+		nsg := make(map[string]string, 2)
+		nsg["id"] = *n.ID
+		nsg["name"] = *n.Name
+		nsgName = *n.Name
+		nsgList = append(nsgList, nsg)
+		nsgMap[nsgName] = nsg
 	}
 
-	return nsgs
+	return nsgList, nsgMap
 }
 
-func flattenPrivateDNSZones(zoneList network.PrivateDNSZoneGroupListResultPage) []interface{} {
-	z := zoneList.Values()
-	zones := make([]interface{}, 0)
-	if z == nil {
-		return zones
-	}
-	for _, item := range z {
-		zone := make(map[string]string)
-		if item.ID != nil {
-			zone["id"] = *item.ID
-		}
-
-		if item.Name != nil {
-			zone["name"] = *item.Name
-		}
-		zones = append(zones, zone)
-	}
-
-	return zones
-}
-
-func flattenPrivateEndpoints(endpointList network.PrivateEndpointListResultPage) []interface{} {
-	e := endpointList.Values()
-	endpoints := make([]interface{}, 0)
-	if e == nil {
-		return endpoints
-	}
-	for _, item := range e {
-		newEndpoint := make(map[string]string)
-		if item.ID != nil {
-			newEndpoint["id"] = *item.ID
-		}
-
-		if item.Name != nil {
-			newEndpoint["name"] = *item.Name
-		}
-		endpoints = append(endpoints, newEndpoint)
-	}
-	return endpoints
-}
-
-func flattenRouteTables(tableList network.RouteTableListResultPage) []interface{} {
+func flattenRouteTables(tableList network.RouteTableListResultPage) ([]interface{}, map[string]interface{}) {
 	tables := tableList.Values()
-	routeTables := make([]interface{}, 0)
+	routeTableList := make([]interface{}, 0)
+	routeTableMap := make(map[string]interface{})
 	if tables == nil {
-		return routeTables
+		return routeTableList, nil
 	}
 	for _, n := range tables {
-		routeTable := make(map[string]string)
-		if n.ID != nil {
-			routeTable["id"] = *n.ID
-		}
-
-		if n.Name != nil {
-			routeTable["name"] = *n.Name
-		}
-		routeTables = append(routeTables, routeTable)
+		routeTable := make(map[string]string, 2)
+		routeTable["id"] = *n.ID
+		routeTable["name"] = *n.Name
+		name := *n.Name
+		routeTableList = append(routeTableList, routeTable)
+		routeTableMap[name] = routeTable
 	}
 
-	return routeTables
+	return routeTableList, routeTableMap
 }
