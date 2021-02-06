@@ -1,6 +1,8 @@
-name: build
-
-on: push
+name: release 
+on: 
+  push:
+    tags:
+    - 'v*'
 
 jobs:
   build:
