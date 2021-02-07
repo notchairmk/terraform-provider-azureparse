@@ -1,4 +1,4 @@
 .idea
 .env.sh
-terraform-provider-loafsley
-terraform-provider-loafsley.exe
+terraform-provider-azureparse
+terraform-provider-azureparse.exe

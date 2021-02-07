@@ -1,4 +1,4 @@
-module github.com/notchairmk/terraform-provider-loafsley
+module github.com/notchairmk/terraform-provider-azureparse
 
 go 1.13
 

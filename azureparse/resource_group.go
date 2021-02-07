@@ -1,15 +1,14 @@
-package loafsley
+package azureparse
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2020-06-01/network"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	uuid "github.com/satori/go.uuid"
 )
 
-func resourceGroupParse() *schema.Resource {
+func resourceGroup() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceServerCreate,
 		Read:   resourceServerRead,
@@ -17,6 +16,12 @@ func resourceGroupParse() *schema.Resource {
 		Delete: resourceServerRead,
 
 		Schema: map[string]*schema.Schema{
+			"resource_group_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Optional: true,
+			},
+
 			"resource_group_name": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -68,20 +73,22 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceServerRead(d *schema.ResourceData, m interface{}) error {
-	nsgClient := m.(*Client).SecurityGroupsClient
-	resourceGroupsClient := m.(*Client).ResourceGroupsClient
-	routeTableClient := m.(*Client).RouteTablesClient
-	ctx := m.(*Client).StopContext
+	nsgClient := m.(*client).SecurityGroupsClient
+	resourceGroupsClient := m.(*client).ResourceGroupsClient
+	routeTableClient := m.(*client).RouteTablesClient
+	ctx := m.(*client).StopContext
 
 	resourceGroupName := d.Get("resource_group_name").(string)
-	// test resource group
-	res, err := resourceGroupsClient.CheckExistence(ctx, resourceGroupName)
+	// validate resource group
+	res, err := resourceGroupsClient.Get(ctx, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("error checking resource group: %v", err)
 	}
-	if res.Response != nil && res.Response.StatusCode != 200 {
-		log.Printf("[INFO] unable to read resource group: %s\n%v\n", resourceGroupName, *res.Response)
-		return nil
+	if res.ID != nil {
+		err = d.Set("resource_group_id", *res.ID)
+		if err != nil {
+			return fmt.Errorf("error setting resource group ID: %v", err)
+		}
 	}
 
 	nsgRes, err := nsgClient.List(ctx, resourceGroupName)

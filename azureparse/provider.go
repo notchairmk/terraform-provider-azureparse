@@ -1,4 +1,4 @@
-package loafsley
+package azureparse
 
 import (
 	"fmt"
@@ -10,10 +10,10 @@ import (
 
 func Provider() terraform.ResourceProvider {
 	p := &schema.Provider{
-		ResourcesMap: Resources(),
+		ResourcesMap: providerResources(),
 
 		Schema: map[string]*schema.Schema{
-			// provider schema values taken from azurerm terraform provider
+			// provider schema values taken from terraform-provider-azurerm
 			"subscription_id": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -65,12 +65,19 @@ func initProvider(p *schema.Provider) schema.ConfigureFunc {
 		if err != nil {
 			return nil, fmt.Errorf("error building client auth: %v", err)
 		}
-		client, err := Build(config)
+
+		client, err := buildClient(config)
 		if err != nil {
 			return nil, fmt.Errorf("error building client: %v", err)
 		}
 
 		client.StopContext = p.StopContext()
 		return client, nil
+	}
+}
+
+func providerResources() map[string]*schema.Resource {
+	return map[string]*schema.Resource{
+		"azureparse_resource_group": resourceGroup(),
 	}
 }

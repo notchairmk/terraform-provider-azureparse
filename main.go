@@ -5,7 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/plugin"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
-	"github.com/notchairmk/terraform-provider-loafsley/loafsley"
+	"github.com/notchairmk/terraform-provider-azureparse/azureparse"
 )
 
 func main() {
@@ -13,7 +13,7 @@ func main() {
 
 	plugin.Serve(&plugin.ServeOpts{
 		ProviderFunc: func() terraform.ResourceProvider {
-			return loafsley.Provider()
+			return azureparse.Provider()
 		},
 	})
 }

@@ -1,4 +1,4 @@
-package loafsley
+package azureparse
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/sender"
 )
 
-type Client struct {
+type client struct {
 	StopContext context.Context
 
 	PrivateEndpointsClient *network.PrivateEndpointsClient
@@ -20,13 +20,13 @@ type Client struct {
 	SecurityGroupsClient   *network.SecurityGroupsClient
 }
 
-func Build(config *authentication.Config) (*Client, error) {
+func buildClient(config *authentication.Config) (*client, error) {
 
 	if config == nil {
 		return nil, fmt.Errorf("error build config is nil: %v", config)
 	}
 
-	sender := sender.BuildSender("azloaf")
+	sender := sender.BuildSender("tfazureparse")
 
 	env, err := authentication.DetermineEnvironment(config.Environment)
 	if err != nil {
@@ -43,13 +43,13 @@ func Build(config *authentication.Config) (*Client, error) {
 		return nil, fmt.Errorf("error retrieving auth token: %v", err)
 	}
 
-	subscriptionId := config.SubscriptionID
+	subscriptionID := config.SubscriptionID
 
-	privateDNSZonesClient := network.NewPrivateDNSZoneGroupsClient(subscriptionId)
-	privateEndpointsClient := network.NewPrivateEndpointsClient(subscriptionId)
-	resourceGroupsClient := resources.NewGroupsClient(subscriptionId)
-	routeTablesClient := network.NewRouteTablesClient(subscriptionId)
-	securityGroupsClient := network.NewSecurityGroupsClient(subscriptionId)
+	privateDNSZonesClient := network.NewPrivateDNSZoneGroupsClient(subscriptionID)
+	privateEndpointsClient := network.NewPrivateEndpointsClient(subscriptionID)
+	resourceGroupsClient := resources.NewGroupsClient(subscriptionID)
+	routeTablesClient := network.NewRouteTablesClient(subscriptionID)
+	securityGroupsClient := network.NewSecurityGroupsClient(subscriptionID)
 
 	privateDNSZonesClient.Authorizer = auth
 	privateEndpointsClient.Authorizer = auth
@@ -57,7 +57,7 @@ func Build(config *authentication.Config) (*Client, error) {
 	routeTablesClient.Authorizer = auth
 	securityGroupsClient.Authorizer = auth
 
-	return &Client{
+	return &client{
 		PrivateDNSZonesClient:  &privateDNSZonesClient,
 		PrivateEndpointsClient: &privateEndpointsClient,
 		ResourceGroupsClient:   &resourceGroupsClient,
