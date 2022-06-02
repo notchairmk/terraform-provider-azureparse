@@ -1,14 +1,16 @@
 package azureparse
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/hashicorp/go-azure-helpers/authentication"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func Provider() terraform.ResourceProvider {
+type provider *schema.Provider
+
+func Provider() *schema.Provider {
 	p := &schema.Provider{
 		ResourcesMap: providerResources(),
 
@@ -51,13 +53,13 @@ func Provider() terraform.ResourceProvider {
 		},
 	}
 
-	p.ConfigureFunc = initProvider(p)
+	p.ConfigureContextFunc = initProvider(p)
 
 	return p
 }
 
-func initProvider(p *schema.Provider) schema.ConfigureFunc {
-	return func(d *schema.ResourceData) (interface{}, error) {
+func initProvider(p *schema.Provider) schema.ConfigureContextFunc {
+	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		builder := &authentication.Builder{
 			SubscriptionID: d.Get("subscription_id").(string),
 			ClientID:       d.Get("client_id").(string),
@@ -71,15 +73,15 @@ func initProvider(p *schema.Provider) schema.ConfigureFunc {
 
 		config, err := builder.Build()
 		if err != nil {
-			return nil, fmt.Errorf("error building client auth: %v", err)
+			return nil, diag.FromErr(err)
 		}
 
 		client, err := buildClient(builder, config)
 		if err != nil {
-			return nil, fmt.Errorf("error building client: %v", err)
+			return nil, diag.FromErr(err)
 		}
 
-		client.StopContext = p.StopContext()
+		client.StopContext = ctx
 		return client, nil
 	}
 }

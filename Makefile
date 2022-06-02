@@ -2,7 +2,7 @@ default: build
 
 .PHONY: build
 build:
-	go build
+	go build -o bin/terraform-provider-azureparse main.go
 
 .PHONY: build-windows
 build-windows:
