@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2020-06-01/resources"
 	"github.com/hashicorp/go-azure-helpers/authentication"
 	"github.com/hashicorp/go-azure-helpers/sender"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type client struct {
@@ -20,7 +21,7 @@ type client struct {
 	SecurityGroupsClient   *network.SecurityGroupsClient
 }
 
-func buildClient(config *authentication.Config) (*client, error) {
+func buildClient(builder *authentication.Builder, config *authentication.Config) (*client, error) {
 
 	if config == nil {
 		return nil, fmt.Errorf("error build config is nil: %v", config)
@@ -38,7 +39,13 @@ func buildClient(config *authentication.Config) (*client, error) {
 		return nil, fmt.Errorf("error building oauth config: %v", err)
 	}
 
-	auth, err := config.GetAuthorizationToken(sender, oauthConfig, env.TokenAudience)
+	environment, err := environments.EnvironmentFromString(builder.Environment)
+	if err != nil {
+		return nil, err
+	}
+
+	// auth, err := config.GetAuthorizationToken(sender, oauthConfig, env.TokenAudience)
+	auth, err := config.GetMSALToken(context.TODO(), environment.ResourceManager, sender, oauthConfig, string(environment.ResourceManager.Endpoint))
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving auth token: %v", err)
 	}

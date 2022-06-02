@@ -41,6 +41,13 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: schema.EnvDefaultFunc("ARM_CLIENT_SECRET", ""),
 				Description: "The Client Secret which should be used. For use When authenticating as a Service Principal using a Client Secret.",
 			},
+
+			"environment": {
+				Type:        schema.TypeString,
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("ARM_ENVIRONMENT", "public"),
+				Description: "azure environment",
+			},
 		},
 	}
 
@@ -56,6 +63,7 @@ func initProvider(p *schema.Provider) schema.ConfigureFunc {
 			ClientID:       d.Get("client_id").(string),
 			ClientSecret:   d.Get("client_secret").(string),
 			TenantID:       d.Get("tenant_id").(string),
+			Environment:    d.Get("environment").(string),
 
 			SupportsAzureCliToken:    true,
 			SupportsClientSecretAuth: true,
@@ -66,7 +74,7 @@ func initProvider(p *schema.Provider) schema.ConfigureFunc {
 			return nil, fmt.Errorf("error building client auth: %v", err)
 		}
 
-		client, err := buildClient(config)
+		client, err := buildClient(builder, config)
 		if err != nil {
 			return nil, fmt.Errorf("error building client: %v", err)
 		}
